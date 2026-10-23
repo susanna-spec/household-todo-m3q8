@@ -20,21 +20,10 @@ h1{font-size:1.6rem;margin:0;letter-spacing:-.01em}
 #status.busy::before{content:"↻ "}
 #status.bad{color:var(--bad);border-color:#f3c9b5}
 #status.bad::before{content:"⚠ "}
-form#add{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:grid;gap:10px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
 input,select,button{font:inherit;color:inherit}
 input[type=text],input[type=date],select{width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fffdfa}
 input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-label.f{font-size:.72rem;color:var(--muted);display:block;margin:0 0 2px 2px}
-.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.seg label{position:relative}
-.seg input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
-.seg span{display:block;text-align:center;padding:10px 4px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-weight:600;font-size:.95rem}
-.seg input:checked+span{background:var(--accent-soft);border-color:var(--accent);color:#8f4524}
-.seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:1px}
-button.primary{min-height:46px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}
-button.primary:active{filter:brightness(.92)}
 section.owner{margin-top:18px}
 section.owner>h2{font-size:1.05rem;margin:0 2px 8px;display:flex;align-items:baseline;gap:8px}
 .count{font-size:.8rem;color:var(--muted);font-weight:400}
@@ -71,20 +60,6 @@ footer a{color:var(--muted)}
 <main>
 <header><h1>Household To-Do</h1><span id="status" class="busy">Loading…</span></header>
 
-<form id="add" autocomplete="off">
-  <input type="text" id="newText" placeholder="What needs doing?" maxlength="200" aria-label="New task" enterkeyhint="done">
-  <div class="seg" role="radiogroup" aria-label="Whose is it?">
-    <label><input type="radio" name="owner" value="Susanna"><span>Susanna</span></label>
-    <label><input type="radio" name="owner" value="Derek"><span>Derek</span></label>
-    <label><input type="radio" name="owner" value="Shared" checked><span>Shared</span></label>
-  </div>
-  <div class="row">
-    <div><label class="f" for="newBucket">When</label><select id="newBucket"><option>Now</option><option>Later</option></select></div>
-    <div><label class="f" for="newDue">Due (optional)</label><input type="date" id="newDue"></div>
-  </div>
-  <button class="primary" type="submit">Add task</button>
-</form>
-
 <div id="lists"><div class="loading">Gathering your list…</div></div>
 
 <details class="doneBox" id="doneBox"><summary id="doneSum">Done</summary><div class="card" id="doneList"></div></details>
@@ -114,7 +89,6 @@ const statusEl = $("#status");
 function setStatus(kind, msg){ statusEl.className = kind; statusEl.textContent = msg; }
 
 /* ---------- helpers ---------- */
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 const todayStr = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
 function fmtDue(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
 function clean(it){
@@ -187,10 +161,6 @@ function schedule(){ clearTimeout(timer); timer=setTimeout(()=>{timer=null;sync(
 
 /* ---------- mutations ---------- */
 function touch(it, patch){ Object.assign(it, patch, {updatedAt: Math.max(Date.now(), it.updatedAt+1)}); schedule(); }
-function addItem(text, owner, bucket, due){
-  items.push({id:uid(), text, owner, bucket, done:false, due:due||"", created:Date.now(), updatedAt:Date.now(), deleted:false});
-  schedule();
-}
 const byId = id => items.find(i=>i.id===id);
 
 /* ---------- rendering ---------- */
@@ -268,13 +238,6 @@ function render(force){
 }
 
 /* ---------- wiring ---------- */
-$("#add").addEventListener("submit", e=>{
-  e.preventDefault();
-  const text=$("#newText").value.trim(); if(!text){ $("#newText").focus(); return; }
-  const owner=document.querySelector('input[name=owner]:checked').value;
-  addItem(text, owner, $("#newBucket").value, $("#newDue").value);
-  $("#newText").value=""; $("#newDue").value=""; $("#newText").focus();
-});
 $("#dataLink").href = DATA_URL;
 $("#backup").addEventListener("click", e=>{
   e.preventDefault();
