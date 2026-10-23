@@ -23,14 +23,13 @@ h1{font-size:1.6rem;margin:0;letter-spacing:-.01em}
 input,select,button{font:inherit;color:inherit}
 input[type=text],input[type=date],select{width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fffdfa}
 input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.row3{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 section.owner{margin-top:18px}
 section.owner>h2{font-size:1.05rem;margin:0 2px 8px;display:flex;align-items:baseline;gap:8px}
 .count{font-size:.8rem;color:var(--muted);font-weight:400}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-.bucket{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:10px 14px 4px}
 .item{display:flex;align-items:center;gap:6px;padding:2px 6px 2px 6px;border-top:1px solid var(--line)}
-.bucket+.item{border-top:0}
+.card>.item:first-child,.card>div:first-child .item{border-top:0}
 .chk{flex:none;width:44px;height:44px;display:grid;place-items:center;background:none;border:0;cursor:pointer;padding:0}
 .chk i{width:24px;height:24px;border:2px solid #cfc6b9;border-radius:50%;display:grid;place-items:center;font-style:normal;color:#fff;font-size:15px;line-height:1;transition:.12s}
 .chk:hover i{border-color:var(--accent)}
@@ -75,13 +74,12 @@ footer a{color:var(--muted)}
 "use strict";
 const DATA_URL = document.querySelector('meta[name="household-data-url"]').content;
 const OWNERS = ["Susanna","Derek","Shared"];
-const BUCKETS = ["Now","Later"];
 const TOMBSTONE_DAYS = 30;
 const POLL_MS = 15000;
 
 let items = [];          // includes soft-deleted tombstones
 let loaded = false;      // true after first successful read from backend
-let editing = null;      // {id,text,owner,bucket,due} draft while an edit panel is open
+let editing = null;      // {id,text,owner,due} draft while an edit panel is open
 let syncing = false, pending = false, timer = null, lastRendered = "";
 
 const $ = s => document.querySelector(s);
@@ -96,7 +94,7 @@ function clean(it){
   return {
     id: it.id, text: String(it.text||"").slice(0,200),
     owner: OWNERS.includes(it.owner)? it.owner : "Shared",
-    bucket: BUCKETS.includes(it.bucket)? it.bucket : "Now",
+    bucket: it.bucket==="Later"? "Later" : "Now",   // legacy field, no longer shown
     done: !!it.done, due: /^\d{4}-\d{2}-\d{2}$/.test(it.due||"") ? it.due : "",
     created: Number(it.created)||Number(it.updatedAt)||0,
     updatedAt: Number(it.updatedAt)||0, deleted: !!it.deleted
@@ -185,18 +183,17 @@ function itemRow(it, showWho){
   const meta = el("div",{class:"meta"});
   if(showWho) meta.append(el("span",{class:"who"},it.owner));
   if(it.due) meta.append(el("span",{class:"chip"+(over?" over":isToday?" today":"")}, (over?"Overdue · ":isToday?"Today · ":"Due ")+fmtDue(it.due)));
-  const body = el("button",{class:"body",type:"button","aria-label":"Edit: "+it.text,onclick:()=>{ editing = editing&&editing.id===it.id ? null : {id:it.id,text:it.text,owner:it.owner,bucket:it.bucket,due:it.due}; render(true); }},
+  const body = el("button",{class:"body",type:"button","aria-label":"Edit: "+it.text,onclick:()=>{ editing = editing&&editing.id===it.id ? null : {id:it.id,text:it.text,owner:it.owner,due:it.due}; render(true); }},
     el("div",{class:"txt"},it.text), meta.childNodes.length? meta : null);
   row.append(chk, body);
   const wrap = el("div",null,row);
   if(editing && editing.id===it.id){
     const t = el("input",{type:"text",maxlength:"200",value:editing.text,"aria-label":"Task text",oninput:e=>editing.text=e.target.value});
     const o = el("select",{"aria-label":"Whose",onchange:e=>editing.owner=e.target.value},...opt(OWNERS,editing.owner));
-    const b = el("select",{"aria-label":"When",onchange:e=>editing.bucket=e.target.value},...opt(BUCKETS,editing.bucket));
     const d = el("input",{type:"date",value:editing.due,"aria-label":"Due date",onchange:e=>editing.due=e.target.value});
-    const save = ()=>{ const txt=editing.text.trim(); if(!txt) return; const cur=byId(editing.id); const e=editing; editing=null; if(cur) touch(cur,{text:txt,owner:e.owner,bucket:e.bucket,due:e.due}); };
+    const save = ()=>{ const txt=editing.text.trim(); if(!txt) return; const cur=byId(editing.id); const e=editing; editing=null; if(cur) touch(cur,{text:txt,owner:e.owner,due:e.due}); };
     t.addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();save();} if(e.key==="Escape"){editing=null;render(true);} });
-    wrap.append(el("div",{class:"edit"}, t, el("div",{class:"row3"},o,b,d),
+    wrap.append(el("div",{class:"edit"}, t, el("div",{class:"row3"},o,d),
       el("div",{class:"btns"},
         el("button",{type:"button",class:"save",onclick:save},"Save"),
         el("button",{type:"button",onclick:()=>{editing=null;render(true);}},"Cancel"),
@@ -222,12 +219,7 @@ function render(force){
     const sec = el("section",{class:"owner"}, el("h2",null,owner,el("span",{class:"count"},mine.length? mine.length+" to do":"")));
     const card = el("div",{class:"card"});
     if(!mine.length) card.append(el("div",{class:"empty"},"All clear here. Nice."));
-    for(const bk of BUCKETS){
-      const rows = mine.filter(i=>i.bucket===bk).sort(sortItems);
-      if(!rows.length) continue;
-      card.append(el("div",{class:"bucket"},bk));
-      rows.forEach(r=>card.append(itemRow(r,false)));
-    }
+    mine.sort(sortItems).forEach(r=>card.append(itemRow(r,false)));
     sec.append(card); lists.append(sec);
   }
   const done = live.filter(i=>i.done).sort((a,b)=>b.updatedAt-a.updatedAt);
