@@ -47,6 +47,14 @@ section.owner>h2{font-size:1.05rem;margin:0 2px 8px;display:flex;align-items:bas
 .edit .del{margin-left:auto;color:var(--bad)}
 .edit .save{background:var(--accent);border-color:var(--accent);color:#fff}
 .empty{padding:14px;color:var(--muted);font-size:.92rem}
+.grip{flex:none;width:36px;height:44px;display:grid;place-items:center;background:none;border:0;padding:0;margin-right:-2px;color:#a39a8d;font-size:18px;line-height:1;letter-spacing:-2px;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.grip:hover,.grip:focus-visible{color:var(--accent)}
+body.dragging,body.dragging *{cursor:grabbing!important;-webkit-user-select:none;user-select:none}
+.card.target{box-shadow:0 0 0 2px var(--accent);background:var(--accent-soft)}
+.ph{background:var(--accent-soft);border-top:1px solid var(--line)}
+.iw.lifted{position:fixed;z-index:50;margin:0;background:#fff;box-shadow:0 8px 22px rgba(45,42,38,.22);border-radius:10px;outline:2px solid var(--accent);outline-offset:-2px}
+.edit .mv{min-width:44px;padding:0 12px}
+.edit .mvlbl{font-size:.8rem;color:var(--muted);align-self:center}
 details.doneBox{margin-top:22px}
 details.doneBox>summary{cursor:pointer;color:var(--muted);padding:8px 2px;font-weight:600;list-style-position:inside}
 .who{font-size:.74rem;padding:1px 8px;border-radius:99px;background:var(--accent-soft);color:#8f4524}
@@ -83,6 +91,7 @@ let items = [];          // includes soft-deleted tombstones
 let loaded = false;      // true after first successful read from backend
 let editing = null;      // {id,text,owner,due} draft while an edit panel is open
 let syncing = false, pending = false, timer = null, lastRendered = "";
+let drag = null;         // drag-and-drop state while an item is being dragged; render() is paused meanwhile so polls can't interrupt it
 
 const $ = s => document.querySelector(s);
 const statusEl = $("#status");
@@ -101,6 +110,7 @@ function clean(it){
     created: Number(it.created)||Number(it.updatedAt)||0,
     updatedAt: Number(it.updatedAt)||0, deleted: !!it.deleted
   };
+  if(it.order!=null && it.order!=="" && isFinite(Number(it.order))) o.order = Number(it.order);   // manual position within owner list (see sortItems)
   if(o.done && Number(it.doneAt)>0) o.doneAt = Number(it.doneAt);   // when it was checked off (ms); absent on older items
   return o;
 }
@@ -167,15 +177,54 @@ async function sync(){
 function schedule(){ clearTimeout(timer); timer=setTimeout(()=>{timer=null;sync();},350); render(); setStatus("busy","Saving…"); }
 
 /* ---------- mutations ---------- */
-function touch(it, patch){
+function bump(it, patch){
   if(it.done && !it.doneAt && !("done" in patch)) patch.doneAt = it.updatedAt;   // pin the fallback so edits don't extend the 3 days
-  Object.assign(it, patch, {updatedAt: Math.max(Date.now(), it.updatedAt+1)}); schedule(); }
+  Object.assign(it, patch, {updatedAt: Math.max(Date.now(), it.updatedAt+1)}); }
+function touch(it, patch){ bump(it, patch); schedule(); }
 const byId = id => items.find(i=>i.id===id);
 
 /* ---------- rendering ---------- */
+/* SORTING RULE (per owner list, not-done items): by `order` ascending, tie-break by `created` ascending.
+   `order` is a number set when an item is dragged / moved (the affected owner list is renumbered 1..n).
+   Items that have no `order` yet (never moved) sort AFTER items that have one, using the original default:
+   due date (earliest first, undated last) then `created`. The first move in a list gives every item in it an `order`.
+   Every change to `order`/`owner` also bumps `updatedAt`, so the newest-wins merge keeps the new arrangement. */
 function sortItems(a,b){
+  const ha = a.order!=null, hb = b.order!=null;
+  if(ha!==hb) return ha? -1 : 1;
+  if(ha){ if(a.order!==b.order) return a.order-b.order; return a.created-b.created; }
   if(a.due!==b.due){ if(!a.due) return 1; if(!b.due) return -1; return a.due<b.due?-1:1; }
   return a.created-b.created;
+}
+const openItems = owner => items.filter(i=>!i.deleted && !i.done && i.owner===owner).sort(sortItems);
+
+/* Set the order of one owner list to `ids` (top to bottom), renumbering 1..n. If movedId is given and was in
+   another list it joins this one. Only items whose order/owner actually change are touched (updatedAt bumped). */
+function commitOrder(owner, ids, movedId){
+  const seen = new Set(), list = [];
+  for(const id of ids){
+    const it = byId(id);
+    if(it && !it.deleted && !it.done && !seen.has(id) && (it.owner===owner || id===movedId)){ list.push(it); seen.add(id); }
+  }
+  // anything that landed in this list meanwhile (e.g. arrived via a poll mid-drag) is kept, at the end
+  for(const it of openItems(owner)) if(!seen.has(it.id) && it.id!==movedId) list.push(it);
+  let changed = false;
+  list.forEach((it,i)=>{
+    const patch = {};
+    if(it.order!==i+1) patch.order = i+1;
+    if(it.owner!==owner) patch.owner = owner;
+    if(Object.keys(patch).length){ bump(it, patch); changed = true; }
+  });
+  if(changed) schedule();
+  return changed;
+}
+function moveBy(id, delta){
+  const it = byId(id); if(!it || it.done || it.deleted) return;
+  const ids = openItems(it.owner).map(i=>i.id), i = ids.indexOf(id), j = i+delta;
+  if(i<0 || j<0 || j>=ids.length) return;
+  ids.splice(i,1); ids.splice(j,0,id);
+  commitOrder(it.owner, ids, null);
+  render(true);
 }
 function el(tag, props, ...kids){
   const e=document.createElement(tag);
@@ -197,14 +246,29 @@ function itemRow(it, showWho){
   const body = el("button",{class:"body",type:"button","aria-label":"Edit: "+it.text,onclick:()=>{ editing = editing&&editing.id===it.id ? null : {id:it.id,text:it.text,owner:it.owner,due:it.due}; render(true); }},
     el("div",{class:"txt"},it.text), meta.childNodes.length? meta : null);
   row.append(chk, body);
-  const wrap = el("div",null,row);
+  if(!it.done){
+    const grip = el("button",{class:"grip",type:"button","aria-label":"Move: "+it.text+". Drag, or use the up and down arrow keys."},el("span",null,"⋮⋮"));
+    grip.addEventListener("pointerdown", e=>startDrag(e,it.id,grip));
+    grip.addEventListener("contextmenu", e=>e.preventDefault());
+    grip.addEventListener("keydown", e=>{
+      if(e.key==="ArrowUp"||e.key==="ArrowDown"){ e.preventDefault(); moveBy(it.id, e.key==="ArrowUp"?-1:1);
+        setTimeout(()=>{ const g=document.querySelector('.iw[data-id="'+it.id+'"] .grip'); if(g) g.focus(); },0); }
+    });
+    row.append(grip);
+  }
+  const wrap = el("div",it.done?null:{class:"iw","data-id":it.id},row);
   if(editing && editing.id===it.id){
     const t = el("input",{type:"text",maxlength:"200",value:editing.text,"aria-label":"Task text",oninput:e=>editing.text=e.target.value});
     const o = el("select",{"aria-label":"Whose",onchange:e=>editing.owner=e.target.value},...opt(OWNERS,editing.owner));
     const d = el("input",{type:"date",value:editing.due,"aria-label":"Due date",onchange:e=>editing.due=e.target.value});
-    const save = ()=>{ const txt=editing.text.trim(); if(!txt) return; const cur=byId(editing.id); const e=editing; editing=null; if(cur) touch(cur,{text:txt,owner:e.owner,due:e.due}); };
+    const save = ()=>{ const txt=editing.text.trim(); if(!txt) return; const cur=byId(editing.id); const e=editing; editing=null; if(!cur) return;
+      if(!cur.done && e.owner!==cur.owner){ commitOrder(e.owner, [...openItems(e.owner).map(i=>i.id), cur.id], cur.id); touch(cur,{text:txt,due:e.due}); }   // moved via the picker: goes to the end of that list
+      else touch(cur,{text:txt,owner:e.owner,due:e.due}); };
     t.addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();save();} if(e.key==="Escape"){editing=null;render(true);} });
-    wrap.append(el("div",{class:"edit"}, t, el("div",{class:"row3"},o,d),
+    const mv = it.done? null : el("div",{class:"btns"}, el("span",{class:"mvlbl"},"Move in list"),
+        el("button",{type:"button",class:"mv","aria-label":"Move up",onclick:()=>moveBy(it.id,-1)},"↑"),
+        el("button",{type:"button",class:"mv","aria-label":"Move down",onclick:()=>moveBy(it.id,1)},"↓"));
+    wrap.append(el("div",{class:"edit"}, t, el("div",{class:"row3"},o,d), mv,
       el("div",{class:"btns"},
         el("button",{type:"button",class:"save",onclick:save},"Save"),
         el("button",{type:"button",onclick:()=>{editing=null;render(true);}},"Cancel"),
@@ -214,7 +278,84 @@ function itemRow(it, showWho){
   return wrap;
 }
 
+function syncEmpty(card){ const e=card.querySelector(":scope>.empty"); if(e) e.hidden = !!card.querySelector(":scope>.iw:not(.lifted),:scope>.ph"); }
+
+/* ---------- drag and drop (Pointer Events; mouse + touch; handle-only so normal scrolling still works) ---------- */
+function cardsEls(){ return [...document.querySelectorAll("#lists .card[data-owner]")]; }
+function pickCard(y){
+  const secs = cardsEls().map(c=>c.parentNode);
+  let pick = secs[0];
+  for(const s of secs){ if(y >= s.getBoundingClientRect().top) pick = s; }   // the section whose band the pointer is in (clamped at both ends)
+  return pick.querySelector(".card");
+}
+function placeDrag(){
+  if(!drag) return;
+  const card = pickCard(drag.y);
+  drag.wrap.style.top = (drag.y - drag.dy) + "px";   // the dragged row floats with the pointer (position:fixed); a placeholder marks the drop slot
+  const rows = [...card.querySelectorAll(":scope>.iw")].filter(r=>r!==drag.wrap);
+  let ref = null;
+  for(const r of rows){ const b=r.getBoundingClientRect(); if(drag.y < b.top + b.height/2){ ref=r; break; } }
+  if(!ref) ref = card.querySelector(":scope>.empty");   // append before the (hidden) empty marker
+  if(drag.ph.parentNode!==card || drag.ph.nextSibling!==ref) card.insertBefore(drag.ph, ref);
+  for(const c of cardsEls()){ c.classList.toggle("target", c===card); syncEmpty(c); }
+}
+function dragLoop(){
+  if(!drag) return;
+  const h = window.innerHeight, edge = 70;
+  let dy = 0;
+  if(drag.y < edge) dy = -Math.ceil((edge-drag.y)/5); else if(drag.y > h-edge) dy = Math.ceil((drag.y-(h-edge))/5);
+  if(dy){ window.scrollBy(0, dy); placeDrag(); }
+  drag.raf = requestAnimationFrame(dragLoop);
+}
+const stopTouch = e=>{ if(e.cancelable) e.preventDefault(); };
+function startDrag(e,id,grip){
+  if(drag || (e.pointerType==="mouse" && e.button!==0)) return;
+  const wrap = grip.closest(".iw"); if(!wrap) return;
+  e.preventDefault();
+  try{ grip.setPointerCapture(e.pointerId); }catch(_){}
+  const rc = wrap.getBoundingClientRect(), ph = el("div",{class:"ph"});
+  ph.style.height = rc.height+"px";
+  drag = {id, wrap, grip, ph, dy:e.clientY-rc.top, pid:e.pointerId, y:e.clientY, raf:0};
+  wrap.parentNode.insertBefore(ph, wrap);
+  wrap.style.left = rc.left+"px"; wrap.style.width = rc.width+"px"; wrap.style.top = rc.top+"px";
+  wrap.classList.add("lifted"); document.body.classList.add("dragging");
+  document.addEventListener("touchmove", stopTouch, {passive:false});
+  grip.addEventListener("pointermove", onDragMove);
+  grip.addEventListener("pointerup", onDragEnd);
+  grip.addEventListener("pointercancel", onDragCancel);
+  grip.addEventListener("lostpointercapture", onDragCancel);
+  document.addEventListener("keydown", onDragKey);
+  placeDrag(); drag.raf = requestAnimationFrame(dragLoop);
+}
+function onDragMove(e){ if(!drag || e.pointerId!==drag.pid) return; drag.y = e.clientY; placeDrag(); }
+function endDrag(){
+  const d = drag; if(!d) return null;
+  cancelAnimationFrame(d.raf);
+  document.removeEventListener("touchmove", stopTouch);
+  document.removeEventListener("keydown", onDragKey);
+  for(const t of ["pointermove","pointerup","pointercancel","lostpointercapture"]) d.grip.removeEventListener(t, {pointermove:onDragMove,pointerup:onDragEnd,pointercancel:onDragCancel,lostpointercapture:onDragCancel}[t]);
+  try{ d.grip.releasePointerCapture(d.pid); }catch(_){}
+  document.body.classList.remove("dragging");
+  drag = null;   // render() works again
+  return d;
+}
+function onDragEnd(e){
+  if(!drag || e.pointerId!==drag.pid) return;
+  const card = drag.ph.parentNode, owner = card && card.dataset ? card.dataset.owner : null;
+  const ids = owner ? [...card.children].map(r=> r===drag.ph? drag.id : (r.classList.contains("iw") && r!==drag.wrap ? r.dataset.id : null)).filter(Boolean) : [];
+  const id = drag.id;
+  endDrag();
+  if(owner){
+    if(editing && editing.id===id) editing.owner = owner;   // keep an open editor in step with the move
+    commitOrder(owner, ids, id);
+  }
+  render(true);
+}
+function onDragCancel(e){ if(!drag || (e.pointerId!==undefined && e.pointerId!==drag.pid)) return; endDrag(); render(true); }
+function onDragKey(e){ if(e.key==="Escape"){ endDrag(); render(true); } }
+
 function render(force){
+  if(drag) return;   // a drag is in progress: never rebuild the DOM under the user's finger (drop/cancel re-renders)
   const live = items.filter(i=>!i.deleted);
   const sig = JSON.stringify(live)+"|"+(editing?editing.id:"")+"|"+loaded;
   if(!force){
@@ -228,9 +369,10 @@ function render(force){
   for(const owner of OWNERS){
     const mine = live.filter(i=>i.owner===owner && !i.done);
     const sec = el("section",{class:"owner"}, el("h2",null,owner,el("span",{class:"count"},mine.length? mine.length+" to do":"")));
-    const card = el("div",{class:"card"});
-    if(!mine.length) card.append(el("div",{class:"empty"},"All clear here. Nice."));
+    const card = el("div",{class:"card","data-owner":owner});
     mine.sort(sortItems).forEach(r=>card.append(itemRow(r,false)));
+    card.append(el("div",{class:"empty"},"All clear here. Nice."));   // always present, shown only while the list has no items (also the drop zone)
+    syncEmpty(card);
     sec.append(card); lists.append(sec);
   }
   const done = live.filter(i=>i.done).sort((a,b)=>b.updatedAt-a.updatedAt);
