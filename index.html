@@ -50,6 +50,7 @@ section.owner>h2{font-size:1.05rem;margin:0 2px 8px;display:flex;align-items:bas
 details.doneBox{margin-top:22px}
 details.doneBox>summary{cursor:pointer;color:var(--muted);padding:8px 2px;font-weight:600;list-style-position:inside}
 .who{font-size:.74rem;padding:1px 8px;border-radius:99px;background:var(--accent-soft);color:#8f4524}
+details.doneBox .hint{font-size:.74rem;color:var(--muted);margin:-2px 2px 8px}
 footer{margin-top:28px;font-size:.78rem;color:var(--muted);text-align:center;line-height:1.6}
 footer a{color:var(--muted)}
 .loading{text-align:center;color:var(--muted);padding:30px}
@@ -61,7 +62,7 @@ footer a{color:var(--muted)}
 
 <div id="lists"><div class="loading">Gathering your list…</div></div>
 
-<details class="doneBox" id="doneBox"><summary id="doneSum">Done</summary><div class="card" id="doneList"></div></details>
+<details class="doneBox" id="doneBox"><summary id="doneSum">Done</summary><div class="hint">Cleared 3 days after done</div><div class="card" id="doneList"></div></details>
 
 <footer>
   Anyone with this link can see and edit this list.<br>
@@ -75,6 +76,7 @@ footer a{color:var(--muted)}
 const DATA_URL = document.querySelector('meta[name="household-data-url"]').content;
 const OWNERS = ["Susanna","Derek","Shared"];
 const TOMBSTONE_DAYS = 30;
+const DONE_KEEP_DAYS = 3;   // checked-off items are removed this long after being checked
 const POLL_MS = 15000;
 
 let items = [];          // includes soft-deleted tombstones
@@ -91,7 +93,7 @@ const todayStr = () => { const d=new Date(); return d.getFullYear()+"-"+String(d
 function fmtDue(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
 function clean(it){
   if(!it || typeof it.id!=="string") return null;
-  return {
+  const o = {
     id: it.id, text: String(it.text||"").slice(0,200),
     owner: OWNERS.includes(it.owner)? it.owner : "Shared",
     bucket: it.bucket==="Later"? "Later" : "Now",   // legacy field, no longer shown
@@ -99,20 +101,27 @@ function clean(it){
     created: Number(it.created)||Number(it.updatedAt)||0,
     updatedAt: Number(it.updatedAt)||0, deleted: !!it.deleted
   };
+  if(o.done && Number(it.doneAt)>0) o.doneAt = Number(it.doneAt);   // when it was checked off (ms); absent on older items
+  return o;
 }
+const doneTime = it => it.doneAt || it.updatedAt;   // fallback for items checked before doneAt existed
 function pickNewer(a,b){
   if(!a) return b; if(!b) return a;
   if(a.updatedAt!==b.updatedAt) return a.updatedAt>b.updatedAt? a : b;
   if(a.deleted!==b.deleted) return a.deleted? a : b;          // tie: deletion wins
   return JSON.stringify(a) >= JSON.stringify(b) ? a : b;      // deterministic tie-break
 }
-function mergeAll(a,b){
+function mergeAll(a,b,expire=true){
   const m=new Map();
   for(const it of [...a,...b]){ const c=clean(it); if(c) m.set(c.id, pickNewer(m.get(c.id), c)); }
-  const cutoff = Date.now() - TOMBSTONE_DAYS*86400000;
+  const now = Date.now(), cutoff = now - TOMBSTONE_DAYS*86400000, doneCutoff = now - DONE_KEEP_DAYS*86400000;
+  if(expire) for(const it of m.values()){
+    // done for more than 3 days -> tombstone with a fresh updatedAt so every device drops it
+    if(it.done && !it.deleted && doneTime(it) < doneCutoff){ it.deleted = true; it.updatedAt = Math.max(now, it.updatedAt+1); }
+  }
   return [...m.values()].filter(it => !(it.deleted && it.updatedAt < cutoff)).sort((x,y)=> x.id<y.id?-1:x.id>y.id?1:0);
 }
-const canon = arr => JSON.stringify(mergeAll(arr,[]));
+const canon = arr => JSON.stringify(mergeAll(arr,[],false));   // no expiry here, so an expired item still counts as a difference to write back
 
 /* ---------- backend ---------- */
 async function readRemote(){
@@ -158,7 +167,9 @@ async function sync(){
 function schedule(){ clearTimeout(timer); timer=setTimeout(()=>{timer=null;sync();},350); render(); setStatus("busy","Saving…"); }
 
 /* ---------- mutations ---------- */
-function touch(it, patch){ Object.assign(it, patch, {updatedAt: Math.max(Date.now(), it.updatedAt+1)}); schedule(); }
+function touch(it, patch){
+  if(it.done && !it.doneAt && !("done" in patch)) patch.doneAt = it.updatedAt;   // pin the fallback so edits don't extend the 3 days
+  Object.assign(it, patch, {updatedAt: Math.max(Date.now(), it.updatedAt+1)}); schedule(); }
 const byId = id => items.find(i=>i.id===id);
 
 /* ---------- rendering ---------- */
@@ -179,7 +190,7 @@ function itemRow(it, showWho){
   const over = !it.done && it.due && it.due < today;
   const isToday = !it.done && it.due === today;
   const row = el("div",{class:"item"+(it.done?" done":"")+(over?" overdue":"")});
-  const chk = el("button",{class:"chk",type:"button","aria-label":(it.done?"Mark not done: ":"Mark done: ")+it.text,onclick:()=>touch(it,{done:!it.done})}, el("i",null,it.done?"✓":""));
+  const chk = el("button",{class:"chk",type:"button","aria-label":(it.done?"Mark not done: ":"Mark done: ")+it.text,onclick:()=>{ if(it.done){ delete it.doneAt; touch(it,{done:false}); } else touch(it,{done:true,doneAt:Date.now()}); }}, el("i",null,it.done?"✓":""));
   const meta = el("div",{class:"meta"});
   if(showWho) meta.append(el("span",{class:"who"},it.owner));
   if(it.due) meta.append(el("span",{class:"chip"+(over?" over":isToday?" today":"")}, (over?"Overdue · ":isToday?"Today · ":"Due ")+fmtDue(it.due)));
