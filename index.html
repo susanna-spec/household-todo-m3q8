@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#faf6f0">
+<meta http-equiv="Cache-Control" content="no-cache">
+<meta name="app-version" content="2026-10-24.2">
 <meta name="household-data-url" content="https://textdb.dev/api/data/hh-todo-4e75b90a11080bd1e73bbc07">
 <title>Household To-Do</title>
 <style>
@@ -20,41 +22,33 @@ h1{font-size:1.6rem;margin:0;letter-spacing:-.01em}
 #status.busy::before{content:"↻ "}
 #status.bad{color:var(--bad);border-color:#f3c9b5}
 #status.bad::before{content:"⚠ "}
-input,select,button{font:inherit;color:inherit}
-input[type=text],input[type=date],select{width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fffdfa}
-input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.row3{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 section.owner{margin-top:18px}
 section.owner>h2{font-size:1.05rem;margin:0 2px 8px;display:flex;align-items:baseline;gap:8px}
 .count{font-size:.8rem;color:var(--muted);font-weight:400}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .item{display:flex;align-items:center;gap:6px;padding:2px 6px 2px 6px;border-top:1px solid var(--line)}
 .card>.item:first-child,.card>div:first-child .item{border-top:0}
-.chk{flex:none;width:44px;height:44px;display:grid;place-items:center;background:none;border:0;cursor:pointer;padding:0}
+.tap{flex:1;min-width:0;min-height:48px;display:flex;align-items:center;gap:6px;background:none;border:0;padding:0;text-align:left;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.chk{flex:none;width:44px;height:44px;display:grid;place-items:center}
 .chk i{width:24px;height:24px;border:2px solid #cfc6b9;border-radius:50%;display:grid;place-items:center;font-style:normal;color:#fff;font-size:15px;line-height:1;transition:.12s}
-.chk:hover i{border-color:var(--accent)}
+.tap:hover .chk i{border-color:var(--accent)}
 .done .chk i{background:var(--ok);border-color:var(--ok)}
-.body{flex:1;min-width:0;background:none;border:0;text-align:left;padding:10px 4px;cursor:pointer;overflow-wrap:anywhere}
+.body{flex:1;min-width:0;padding:10px 4px;overflow-wrap:anywhere}
 .done .txt{text-decoration:line-through;color:var(--muted)}
 .meta{display:flex;gap:6px;margin-top:2px;flex-wrap:wrap}
 .chip{font-size:.74rem;padding:1px 8px;border-radius:99px;background:#f3eee6;color:#6b645b}
 .chip.over{background:var(--bad-soft);color:var(--bad);font-weight:700}
 .chip.today{background:#fff3cf;color:#8a6100;font-weight:600}
 .item.overdue{background:#fff7f3;box-shadow:inset 3px 0 0 var(--bad)}
-.edit{padding:10px 12px 12px;border-top:1px solid var(--line);background:#fffaf4;display:grid;gap:8px}
-.edit .btns{display:flex;gap:8px}
-.edit button{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer;font-weight:600}
-.edit .del{margin-left:auto;color:var(--bad)}
-.edit .save{background:var(--accent);border-color:var(--accent);color:#fff}
 .empty{padding:14px;color:var(--muted);font-size:.92rem}
-.grip{flex:none;width:36px;height:44px;display:grid;place-items:center;background:none;border:0;padding:0;margin-right:-2px;color:#a39a8d;font-size:18px;line-height:1;letter-spacing:-2px;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.grip{flex:none;width:44px;height:44px;display:grid;place-items:center;background:none;border:0;padding:0;margin-right:-2px;color:#a39a8d;font-size:18px;line-height:1;letter-spacing:-2px;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 .grip:hover,.grip:focus-visible{color:var(--accent)}
 body.dragging,body.dragging *{cursor:grabbing!important;-webkit-user-select:none;user-select:none}
 .card.target{box-shadow:0 0 0 2px var(--accent);background:var(--accent-soft)}
 .ph{background:var(--accent-soft);border-top:1px solid var(--line)}
 .iw.lifted{position:fixed;z-index:50;margin:0;background:#fff;box-shadow:0 8px 22px rgba(45,42,38,.22);border-radius:10px;outline:2px solid var(--accent);outline-offset:-2px}
-.edit .mv{min-width:44px;padding:0 12px}
-.edit .mvlbl{font-size:.8rem;color:var(--muted);align-self:center}
 details.doneBox{margin-top:22px}
 details.doneBox>summary{cursor:pointer;color:var(--muted);padding:8px 2px;font-weight:600;list-style-position:inside}
 .who{font-size:.74rem;padding:1px 8px;border-radius:99px;background:var(--accent-soft);color:#8f4524}
@@ -74,7 +68,7 @@ footer a{color:var(--muted)}
 
 <footer>
   Anyone with this link can see and edit this list.<br>
-  <a id="dataLink" href="#" target="_blank" rel="noopener">Raw data (JSON)</a> · <a href="#" id="backup">Download backup</a>
+  <a id="dataLink" href="#" target="_blank" rel="noopener">Raw data (JSON)</a> · <a href="#" id="backup">Download backup</a> · <span id="ver"></span>
 </footer>
 </main>
 
@@ -89,9 +83,10 @@ const POLL_MS = 15000;
 
 let items = [];          // includes soft-deleted tombstones
 let loaded = false;      // true after first successful read from backend
-let editing = null;      // {id,text,owner,due} draft while an edit panel is open
 let syncing = false, pending = false, timer = null, lastRendered = "";
 let drag = null;         // drag-and-drop state while an item is being dragged; render() is paused meanwhile so polls can't interrupt it
+let press = null;        // pointer down on a grip that has not moved far enough to count as a drag yet
+const DRAG_START_PX = 6; // a tap on the grip never lifts the row; only real movement does
 
 const $ = s => document.querySelector(s);
 const statusEl = $("#status");
@@ -182,6 +177,11 @@ function bump(it, patch){
   Object.assign(it, patch, {updatedAt: Math.max(Date.now(), it.updatedAt+1)}); }
 function touch(it, patch){ bump(it, patch); schedule(); }
 const byId = id => items.find(i=>i.id===id);
+/* Always look the item up by id: every sync rebuilds `items` with fresh objects, so an object captured at render time goes stale. */
+function toggle(id){
+  const it = byId(id); if(!it || it.deleted) return;
+  if(it.done){ delete it.doneAt; touch(it,{done:false}); } else touch(it,{done:true,doneAt:Date.now()});
+}
 
 /* ---------- rendering ---------- */
 /* SORTING RULE (per owner list, not-done items): by `order` ascending, tie-break by `created` ascending.
@@ -232,49 +232,32 @@ function el(tag, props, ...kids){
   for(const k of kids) if(k!=null) e.append(k);
   return e;
 }
-function opt(list,sel){ return list.map(v=>{const o=el("option",{value:v},v); if(v===sel) o.selected=true; return o;}); }
 
 function itemRow(it, showWho){
   const today = todayStr();
   const over = !it.done && it.due && it.due < today;
   const isToday = !it.done && it.due === today;
   const row = el("div",{class:"item"+(it.done?" done":"")+(over?" overdue":"")});
-  const chk = el("button",{class:"chk",type:"button","aria-label":(it.done?"Mark not done: ":"Mark done: ")+it.text,onclick:()=>{ if(it.done){ delete it.doneAt; touch(it,{done:false}); } else touch(it,{done:true,doneAt:Date.now()}); }}, el("i",null,it.done?"✓":""));
   const meta = el("div",{class:"meta"});
   if(showWho) meta.append(el("span",{class:"who"},it.owner));
   if(it.due) meta.append(el("span",{class:"chip"+(over?" over":isToday?" today":"")}, (over?"Overdue · ":isToday?"Today · ":"Due ")+fmtDue(it.due)));
-  const body = el("button",{class:"body",type:"button","aria-label":"Edit: "+it.text,onclick:()=>{ editing = editing&&editing.id===it.id ? null : {id:it.id,text:it.text,owner:it.owner,due:it.due}; render(true); }},
-    el("div",{class:"txt"},it.text), meta.childNodes.length? meta : null);
-  row.append(chk, body);
+  const id = it.id;
+  const tap = el("button",{class:"tap",type:"button","aria-pressed":it.done?"true":"false","aria-label":(it.done?"Mark not done: ":"Mark done: ")+it.text,onclick:()=>toggle(id)},
+    el("span",{class:"chk"},el("i",null,it.done?"✓":"")),
+    el("span",{class:"body"},el("div",{class:"txt"},it.text), meta.childNodes.length? meta : null));
+  row.append(tap);
   if(!it.done){
     const grip = el("button",{class:"grip",type:"button","aria-label":"Move: "+it.text+". Drag, or use the up and down arrow keys."},el("span",null,"⋮⋮"));
-    grip.addEventListener("pointerdown", e=>startDrag(e,it.id,grip));
+    grip.addEventListener("pointerdown", e=>pressGrip(e,id,grip));
+    grip.addEventListener("click", e=>e.preventDefault());
     grip.addEventListener("contextmenu", e=>e.preventDefault());
     grip.addEventListener("keydown", e=>{
-      if(e.key==="ArrowUp"||e.key==="ArrowDown"){ e.preventDefault(); moveBy(it.id, e.key==="ArrowUp"?-1:1);
-        setTimeout(()=>{ const g=document.querySelector('.iw[data-id="'+it.id+'"] .grip'); if(g) g.focus(); },0); }
+      if(e.key==="ArrowUp"||e.key==="ArrowDown"){ e.preventDefault(); moveBy(id, e.key==="ArrowUp"?-1:1);
+        setTimeout(()=>{ const g=document.querySelector('.iw[data-id="'+id+'"] .grip'); if(g) g.focus(); },0); }
     });
     row.append(grip);
   }
-  const wrap = el("div",it.done?null:{class:"iw","data-id":it.id},row);
-  if(editing && editing.id===it.id){
-    const t = el("input",{type:"text",maxlength:"200",value:editing.text,"aria-label":"Task text",oninput:e=>editing.text=e.target.value});
-    const o = el("select",{"aria-label":"Whose",onchange:e=>editing.owner=e.target.value},...opt(OWNERS,editing.owner));
-    const d = el("input",{type:"date",value:editing.due,"aria-label":"Due date",onchange:e=>editing.due=e.target.value});
-    const save = ()=>{ const txt=editing.text.trim(); if(!txt) return; const cur=byId(editing.id); const e=editing; editing=null; if(!cur) return;
-      if(!cur.done && e.owner!==cur.owner){ commitOrder(e.owner, [...openItems(e.owner).map(i=>i.id), cur.id], cur.id); touch(cur,{text:txt,due:e.due}); }   // moved via the picker: goes to the end of that list
-      else touch(cur,{text:txt,owner:e.owner,due:e.due}); };
-    t.addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();save();} if(e.key==="Escape"){editing=null;render(true);} });
-    const mv = it.done? null : el("div",{class:"btns"}, el("span",{class:"mvlbl"},"Move in list"),
-        el("button",{type:"button",class:"mv","aria-label":"Move up",onclick:()=>moveBy(it.id,-1)},"↑"),
-        el("button",{type:"button",class:"mv","aria-label":"Move down",onclick:()=>moveBy(it.id,1)},"↓"));
-    wrap.append(el("div",{class:"edit"}, t, el("div",{class:"row3"},o,d), mv,
-      el("div",{class:"btns"},
-        el("button",{type:"button",class:"save",onclick:save},"Save"),
-        el("button",{type:"button",onclick:()=>{editing=null;render(true);}},"Cancel"),
-        el("button",{type:"button",class:"del",onclick:()=>{ if(confirm("Delete this task?")){ const cur=byId(it.id); editing=null; if(cur) touch(cur,{deleted:true}); } }},"Delete"))));
-    setTimeout(()=>{ const x=wrap.querySelector("input[type=text]"); if(x && document.activeElement!==x && !wrap.dataset.f){ x.focus(); } },0);
-  }
+  const wrap = el("div",it.done?null:{class:"iw","data-id":id},row);
   return wrap;
 }
 
@@ -308,14 +291,35 @@ function dragLoop(){
   drag.raf = requestAnimationFrame(dragLoop);
 }
 const stopTouch = e=>{ if(e.cancelable) e.preventDefault(); };
-function startDrag(e,id,grip){
-  if(drag || (e.pointerType==="mouse" && e.button!==0)) return;
-  const wrap = grip.closest(".iw"); if(!wrap) return;
+/* pointerdown on the grip only arms a drag; the row lifts once the pointer moves DRAG_START_PX, so a tap does nothing */
+function pressGrip(e,id,grip){
+  if(drag || press || (e.pointerType==="mouse" && e.button!==0)) return;
   e.preventDefault();
   try{ grip.setPointerCapture(e.pointerId); }catch(_){}
+  press = {id, grip, pid:e.pointerId, x:e.clientX, y:e.clientY};
+  grip.addEventListener("pointermove", onPressMove);
+  grip.addEventListener("pointerup", endPress);
+  grip.addEventListener("pointercancel", endPress);
+  grip.addEventListener("lostpointercapture", endPress);
+}
+function endPress(){
+  const p = press; if(!p) return null; press = null;
+  for(const t of ["pointermove","pointerup","pointercancel","lostpointercapture"]) p.grip.removeEventListener(t, t==="pointermove"? onPressMove : endPress);
+  return p;
+}
+function onPressMove(e){
+  if(!press || e.pointerId!==press.pid) return;
+  if(Math.hypot(e.clientX-press.x, e.clientY-press.y) < DRAG_START_PX) return;
+  const p = press;
+  for(const t of ["pointermove","pointerup","pointercancel","lostpointercapture"]) p.grip.removeEventListener(t, t==="pointermove"? onPressMove : endPress);
+  press = null;
+  startDrag(e, p.id, p.grip, p.y);
+}
+function startDrag(e,id,grip,y0){
+  const wrap = grip.closest(".iw"); if(!wrap) return;
   const rc = wrap.getBoundingClientRect(), ph = el("div",{class:"ph"});
   ph.style.height = rc.height+"px";
-  drag = {id, wrap, grip, ph, dy:e.clientY-rc.top, pid:e.pointerId, y:e.clientY, raf:0};
+  drag = {id, wrap, grip, ph, dy:y0-rc.top, pid:e.pointerId, y:e.clientY, raf:0};
   wrap.parentNode.insertBefore(ph, wrap);
   wrap.style.left = rc.left+"px"; wrap.style.width = rc.width+"px"; wrap.style.top = rc.top+"px";
   wrap.classList.add("lifted"); document.body.classList.add("dragging");
@@ -346,7 +350,6 @@ function onDragEnd(e){
   const id = drag.id;
   endDrag();
   if(owner){
-    if(editing && editing.id===id) editing.owner = owner;   // keep an open editor in step with the move
     commitOrder(owner, ids, id);
   }
   render(true);
@@ -357,11 +360,8 @@ function onDragKey(e){ if(e.key==="Escape"){ endDrag(); render(true); } }
 function render(force){
   if(drag) return;   // a drag is in progress: never rebuild the DOM under the user's finger (drop/cancel re-renders)
   const live = items.filter(i=>!i.deleted);
-  const sig = JSON.stringify(live)+"|"+(editing?editing.id:"")+"|"+loaded;
-  if(!force){
-    if(sig===lastRendered) return;
-    if(editing && lastRendered.indexOf("|"+editing.id+"|")>-1) { lastRendered=sig; return; }  // don't disturb an open editor
-  }
+  const sig = JSON.stringify(live)+"|"+loaded;
+  if(!force && sig===lastRendered) return;
   lastRendered = sig;
   const lists = $("#lists");
   lists.replaceChildren();
@@ -389,14 +389,25 @@ $("#backup").addEventListener("click", e=>{
   const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),items:items.filter(i=>!i.deleted)},null,2)],{type:"application/json"});
   const a=el("a",{href:URL.createObjectURL(blob),download:"household-todo-backup.json"}); document.body.append(a); a.click(); a.remove();
 });
+/* stale-page guard: browsers may keep an old copy of this page; if the live one is newer, reload once */
+const APP_VERSION = document.querySelector('meta[name="app-version"]').content;
+$("#ver").textContent = "v"+APP_VERSION;
+async function checkVersion(){
+  try{
+    const r = await fetch(location.pathname, {cache:"reload"});
+    const m = (await r.text()).match(/name="app-version" content="([^"]+)"/);
+    if(m && m[1]!==APP_VERSION && sessionStorage.getItem("reloadedFor")!==m[1]){ sessionStorage.setItem("reloadedFor", m[1]); location.reload(); }
+  }catch(_){}
+}
 window.__household = { dataUrl: DATA_URL, sync, get items(){ return items; } };
 
 setInterval(()=>{ if(!document.hidden) sync(); }, POLL_MS);
-document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) sync(); });
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden){ sync(); checkVersion(); } });
 window.addEventListener("focus", ()=>sync());
 window.addEventListener("online", ()=>sync());
 render(true);
 sync();
+checkVersion();
 })();
 </script>
 </body>
